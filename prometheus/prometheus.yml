@@ -1,0 +1,34 @@
+# http://prometheus.io/docs/operating/configuration/
+
+global:
+  evaluation_interval: 1m
+  scrape_interval: 3s
+  scrape_timeout: 3s
+
+  external_labels:
+    environment: prometheus.loc
+
+
+rule_files:
+  - ./*.rules
+
+alerting:
+  alertmanagers:
+  - scheme: http
+    static_configs:
+    - targets:
+      - alertmanager:9093
+
+
+scrape_configs:
+
+  - job_name: prometheus
+    metrics_path: /metrics
+    static_configs:
+    - targets:
+      - localhost:9090
+      - pushgateway:9091
+  - job_name: node-exporters
+    static_configs:
+    - targets:
+      - node-exporter:9100

@@ -1,0 +1,93 @@
+version: "2.4"
+
+services:
+  loki:
+    image: grafana/loki:master
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki:/etc/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    cpu_percent: 20
+    mem_limit: 256M
+
+  promtail:
+    image: grafana/promtail:master
+    volumes:
+      - ./promtail:/etc/promtail
+      - /var/log:/var/log
+#      - /var/snap/docker/common/var-lib-docker/containers:/var/lib/docker/containers:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/docker-config.yaml
+
+  grafana:
+    image: grafana/grafana:master
+    user: root
+    ports:
+      - "3000:3000"
+    volumes:
+      - './grafana:/var/lib/grafana'
+    environment:
+      GF_SERVER_ROOT_URL: 'http://localhost:3000'
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_SECURITY_ADMIN_PASSWORD: 'pass'
+  prometheus:
+    image: prom/prometheus
+    restart: always
+    user: root
+    ports:
+      - 127.0.0.1:9090:9090
+    volumes:
+      - './prometheus:/etc/prometheus'
+      - './db/prometheus:/prometheus'
+#      - './resolv.conf:/etc/resolv.conf'
+    command: ["--config.file=/etc/prometheus/prometheus.yml",
+         "--storage.tsdb.path=/prometheus",
+         "--web.console.libraries=/usr/share/prometheus/console_libraries",
+         "--web.console.templates=/usr/share/prometheus/consoles","--storage.tsdb.retention.time=30d"]
+
+  alertmanager:
+    image: prom/alertmanager
+    ports: 
+      - 127.0.0.1:9093:9093
+      - 127.0.0.1:5001:5001
+    volumes:
+      - './alertmanager.yml:/etc/alertmanager/alertmanager.yml:rw'
+
+  pushgateway:
+    image: prom/pushgateway
+    ports:
+      - 9091:9091
+ #TZ: 'Europe/Moscow'
+
+  alertmanager-bot:
+    image: metalmatze/alertmanager-bot:0.4.0
+    environment:
+      ALERTMANAGER_URL: http://alertmanager:9093
+      BOLT_PATH: /data/bot.db
+      STORE: bolt
+      LISTEN_ADDR: 0.0.0.0:8080
+      TELEGRAM_ADMIN: '9999999'
+      TELEGRAM_TOKEN: 507584769:AAHzZ9999UF4QqK2Xfc7LDI3RFhr4T26KU
+      TEMPLATE_PATHS: /templates/alert.tmpl
+    volumes:
+      - ./alertmanager-bot/data:/data
+      - ./alertmanager-bot/templates:/templates
+
+  node-exporter:
+    image: prom/node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    ports:
+      - 127.0.0.1:9100:9100
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+    command:
+      - '--path.procfs=/host/proc' 
+      - '--path.sysfs=/host/sys'
+      - '--web.listen-address=10.10.10.1:9100'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
