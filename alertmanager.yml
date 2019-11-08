@@ -11,8 +11,7 @@ receivers:
 - name: 'web.hook'
   webhook_configs:
   - url: 'http://alertmanager:5001/'
-#  - url: 'http://alertmanager-bot:8080/'
-#  - url: 'http://webhook:5000/webhook_alertmanager'
+  - url: 'http://alertmanager-bot:8080/'
 inhibit_rules:
   - source_match:
       severity: 'critical'

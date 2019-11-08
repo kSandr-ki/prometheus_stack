@@ -3,6 +3,7 @@ version: "2.4"
 services:
   loki:
     image: grafana/loki:master
+    restart: unless-stopped
     ports:
       - "3100:3100"
     volumes:
@@ -13,6 +14,7 @@ services:
 
   promtail:
     image: grafana/promtail:master
+    restart: unless-stopped
     volumes:
       - ./promtail:/etc/promtail
       - /var/log:/var/log
@@ -22,25 +24,33 @@ services:
 
   grafana:
     image: grafana/grafana:master
+    restart: unless-stopped
     user: root
     ports:
       - "3000:3000"
     volumes:
-      - './grafana:/var/lib/grafana'
+      - './grafana/data:/var/lib/grafana'
+      - './grafana/provisioning:/etc/grafana/provisioning'
+      - './grafana/dashboards:/etc/grafana/dashboards'
     environment:
       GF_SERVER_ROOT_URL: 'http://localhost:3000'
       GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_SECURITY_ADMIN_PASSWORD: 'pass'
+      GF_SMTP_ENABLED: 'true'
+      GF_SMTP_HOST: 'smtp.gmail.com:587'
+      GF_SMTP_USER: 'myadrress@gmail.com'
+      GF_SMTP_PASSWORD: 'mypassword'
+      GF_SMTP_FROM_ADDRESS: 'myaddress@gmail.com'
   prometheus:
     image: prom/prometheus
-    restart: always
+    restart: unless-stopped
     user: root
     ports:
       - 127.0.0.1:9090:9090
     volumes:
-      - './prometheus:/etc/prometheus'
-      - './db/prometheus:/prometheus'
-#      - './resolv.conf:/etc/resolv.conf'
+      - './prometheus/conf:/etc/prometheus'
+      - './prometheus/db:/prometheus'
     command: ["--config.file=/etc/prometheus/prometheus.yml",
          "--storage.tsdb.path=/prometheus",
          "--web.console.libraries=/usr/share/prometheus/console_libraries",
@@ -48,6 +58,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager
+    restart: unless-stopped
     ports: 
       - 127.0.0.1:9093:9093
       - 127.0.0.1:5001:5001
@@ -56,12 +67,13 @@ services:
 
   pushgateway:
     image: prom/pushgateway
+    restart: unless-stopped
     ports:
       - 9091:9091
- #TZ: 'Europe/Moscow'
 
   alertmanager-bot:
     image: metalmatze/alertmanager-bot:0.4.0
+    restart: unless-stopped
     environment:
       ALERTMANAGER_URL: http://alertmanager:9093
       BOLT_PATH: /data/bot.db
@@ -74,13 +86,22 @@ services:
       - ./alertmanager-bot/data:/data
       - ./alertmanager-bot/templates:/templates
 
+  cadvisor:
+    image: google/cadvisor:latest
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+#      - /var/snap/docker/common/var-lib-docker:/var/lib/docker:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    expose:
+      - 8080
+
   node-exporter:
     image: prom/node-exporter
     restart: unless-stopped
-    network_mode: host
     pid: host
-    ports:
-      - 127.0.0.1:9100:9100
     volumes:
       - "/proc:/host/proc:ro"
       - "/sys:/host/sys:ro"
@@ -88,6 +109,6 @@ services:
     command:
       - '--path.procfs=/host/proc' 
       - '--path.sysfs=/host/sys'
-      - '--web.listen-address=10.10.10.1:9100'
-      - --collector.filesystem.ignored-mount-points
+      - '--web.listen-address=0.0.0.0:9100'
+      - '--collector.filesystem.ignored-mount-points'
       - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
